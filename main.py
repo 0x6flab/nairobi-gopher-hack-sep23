@@ -4,14 +4,20 @@ from flask import Flask, request
 from twilio.twiml.messaging_response import MessagingResponse
 import requests
 from requests.auth import HTTPBasicAuth
+from gpt.lib import GPT
+from dotenv import load_dotenv
 
-account_sid = os.environ.get('TWILIO_ACCOUNT_SID', "")
-auth_token = os.environ.get('TWILIO_AUTH_TOKEN', "")
-print(account_sid)
-client = Client(account_sid, auth_token)
+load_dotenv()
+
+ACCOUNT_SID = os.environ.get('TWILIO_ACCOUNT_SID', "")
+AUTH_TOKEN = os.environ.get('TWILIO_AUTH_TOKEN', "")
+OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY', "")
+
+client = Client(ACCOUNT_SID, AUTH_TOKEN)
 
 
 app = Flask(__name__)
+gpt = GPT(token=OPENAI_API_KEY)
 
 @app.route("/whatsapp", methods=["GET", "POST"])
 def reply_whatsapp():
@@ -26,14 +32,16 @@ def reply_whatsapp():
     else:
         file_url = request.values.get("MediaUrl0")
         
-        file_res = requests.get(file_url, auth=HTTPBasicAuth(account_sid, auth_token))
+        file_res = requests.get(file_url, auth=HTTPBasicAuth(ACCOUNT_SID, AUTH_TOKEN))
         if file_res.status_code == 200:
             local_filepath = "statement.pdf"
             with open(local_filepath, 'wb') as local_file:
                 local_file.write(file_res.content)
-            msg = response.message("Some sage advice for you")
+            gpt_response = gpt.chat_with_file(file=local_filepath)
+            msg = response.message(gpt_response)
         else:
             msg = response.message("Failed to retieve file")
+    
     return str(response)
 
 
